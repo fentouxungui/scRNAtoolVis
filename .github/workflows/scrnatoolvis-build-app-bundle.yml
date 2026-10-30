@@ -41,13 +41,13 @@ env:
   FORCED_PKGS: "jjAnno jjPlot ggunchull scRNAtoolVis"
   EXTRA_REPOS: ""
   SOFT_PKGS: "jjAnno jjPlot ggunchull scRNAtoolVis"
-  SOURCE_REBUILD: "gdtools"
-  MACOS_BREW_DEPS: "imagemagick"
+  SOURCE_REBUILD: ""
+  MACOS_BREW_DEPS: ""
   PKG_VERSION_PACKAGES: ""
   PKG_VERSION_SUFFIX: ""
   PATCH_SCRIPT: ""
   PREFETCH_SCRIPT: ""
-  APP_NOTES: "Flat bundle of inst/shinyapp. scRNAtoolVis and its GitHub-only dependencies jjAnno, jjPlot and ggunchull are installed from pinned GitHub archive tarballs; SOFT_PKGS is used only to bypass the CRAN/Bioc index for these forced packages. .rds and .qs2 uploads are supported via qs2; legacy .qs is not compatible with qs2. The bundle includes GPL-3.0-or-later ggunchull and qs2. macOS uses Homebrew ImageMagick for magick."
+  APP_NOTES: "Windows-only bundle. The macOS build currently fails while installing the ggunchull dependency chain, so the mac-arm64 asset is deferred. Flat bundle of inst/shinyapp: scRNAtoolVis and its GitHub-only dependencies jjAnno, jjPlot and ggunchull are installed from pinned GitHub archive tarballs; SOFT_PKGS is used only to bypass the CRAN/Bioc index for these forced packages. .rds and .qs2 uploads are supported via qs2; legacy .qs is not compatible with qs2. The bundle includes GPL-3.0-or-later ggunchull and qs2."
   MAX_REQUEST_MB: "1024"
   SMOKE: "on"
   SMOKE_TIMEOUT_SEC: "300"
@@ -65,7 +65,6 @@ jobs:
       matrix:
         include:
           - { os: windows-latest, platform: "win-x64" }
-          - { os: macos-14,       platform: "mac-arm64" }
     steps:
       - uses: actions/checkout@v4
         with:
