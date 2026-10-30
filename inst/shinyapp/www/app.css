@@ -1,0 +1,134 @@
+/* scRNAtoolVis Explorer ---------------------------------------------------- */
+
+.header-status {
+  color: #ffffff;
+  padding: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.header-status .label {
+  font-size: 11px;
+  margin-left: 4px;
+}
+
+.plot-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.plot-toolbar .shiny-download-link {
+  margin-left: 4px;
+}
+
+.plot-scroll {
+  overflow: auto;
+  max-width: 100%;
+  max-height: 82vh;
+  border: 1px dashed #d2d6de;
+  background: #ffffff;
+  padding: 4px;
+}
+
+.plot-scroll .shiny-plot-output {
+  max-width: none;
+}
+
+details.param-group {
+  margin-bottom: 10px;
+}
+
+details.param-group > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #3c8dbc;
+  padding: 4px 0;
+  outline: none;
+}
+
+details.param-group > summary::-webkit-details-marker {
+  color: #3c8dbc;
+}
+
+.form-group {
+  margin-bottom: 10px;
+}
+
+.help-block {
+  margin-top: 2px;
+}
+
+#about_session {
+  max-height: 320px;
+  overflow: auto;
+  font-size: 11px;
+}
+
+/* About page: per-page documentation entries */
+details.doc-entry {
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+details.doc-entry > summary {
+  cursor: pointer;
+  font-size: 15px;
+  color: #3c8dbc;
+  padding: 4px 0;
+  outline: none;
+}
+
+details.doc-entry > summary code {
+  color: #777;
+  margin-left: 8px;
+  font-size: 12px;
+}
+
+details.doc-entry > p {
+  margin: 6px 0 8px;
+  line-height: 1.55;
+}
+
+details.doc-entry .table {
+  margin-top: 8px;
+}
+
+details.doc-entry .table td {
+  vertical-align: top;
+}
+
+details.doc-entry .table td:first-child {
+  width: 32%;
+  font-weight: 500;
+}
+
+details.doc-entry.doc-controls {
+  margin-top: 8px;
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+details.doc-entry.doc-controls > summary {
+  font-size: 13px;
+  color: #666;
+}
+
+.doc-notes {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: #f7f7f7;
+  border-left: 3px solid #3c8dbc;
+}
+
+.doc-notes ul {
+  margin-bottom: 0;
+  padding-left: 18px;
+}

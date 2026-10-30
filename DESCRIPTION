@@ -8,7 +8,6 @@ Description: Some useful functions to visualize scRNA-seq figures.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.3
 biocViews: Software, Visualization
 Remotes:
   junjunlab/jjAnno,
@@ -39,7 +38,19 @@ Imports:
     Seurat,
     stats,
     utils
-Depends: 
+Depends:
     tidyverse,
     R (>= 2.10)
+Suggests:
+    shiny,
+    shinydashboard,
+    DT,
+    colourpicker,
+    jsonlite,
+    qs,
+    svglite,
+    testthat (>= 3.0.0),
+    shinytest2
 LazyData: true
+Config/testthat/edition: 3
+Config/roxygen2/version: 8.1.0

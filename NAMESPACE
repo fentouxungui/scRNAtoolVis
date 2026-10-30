@@ -9,6 +9,7 @@ export(featureCornerAxes)
 export(featurePlot)
 export(jjDotPlot)
 export(jjVolcano)
+export(launchScRNAtoolVis)
 export(markerVolcano)
 export(scatterCellPlot)
 export(tracksPlot)
@@ -22,19 +23,21 @@ import(patchwork)
 import(tidyverse)
 import(utils)
 importFrom(ggunchull,stat_unchull0)
-importFrom(grid,arrow)
-importFrom(grid,gpar)
-importFrom(grid,grid.layout)
-importFrom(grid,grid.newpage)
-importFrom(grid,grid.points)
-importFrom(grid,grid.rect)
-importFrom(grid,grid.segments)
-importFrom(grid,grid.text)
-importFrom(grid,grid.xaxis)
-importFrom(grid,grid.yaxis)
-importFrom(grid,popViewport)
-importFrom(grid,pushViewport)
-importFrom(grid,unit)
-importFrom(grid,viewport)
+importFrom(grid,
+  arrow,
+  gpar,
+  grid.layout,
+  grid.newpage,
+  grid.points,
+  grid.rect,
+  grid.segments,
+  grid.text,
+  grid.xaxis,
+  grid.yaxis,
+  popViewport,
+  pushViewport,
+  unit,
+  viewport
+)
 importFrom(magrittr,"%>%")
 importFrom(stats,quantile)
