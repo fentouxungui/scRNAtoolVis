@@ -2,7 +2,7 @@
 #'
 #' Starts a local Shiny application for interactive exploration of the
 #' plotting functions in \pkg{scRNAtoolVis}. The application accepts a Seurat
-#' object uploaded as an \code{.rds} or \code{.qs} file, exposes the parameters
+#' object uploaded as an \code{.rds} or \code{.qs2} file, exposes the parameters
 #' of the package's plotting functions, and supports plot export.
 #'
 #' The application is an add-on: the existing plotting functions are called

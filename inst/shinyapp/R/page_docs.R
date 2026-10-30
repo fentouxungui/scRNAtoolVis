@@ -14,7 +14,7 @@ page_docs <- function() {
         "session state."
       ),
       params = c(
-        "Upload .rds / .qs" = "A serialized Seurat object. Reading .qs needs the optional qs package.",
+        "Upload .rds / .qs2" = "A serialized Seurat object. Reading .qs2 needs the optional qs2 package.",
         "Demo object" = "Two small objects bundled with scRNAtoolVis: a PBMC object and a test object.",
         "Active identity" = "Metadata column copied into Idents. Feature Plot, Scatter Cell Plot, Tracks Plot, and Average Heatmap labels follow it.",
         "Object summary" = "Assays, reductions, and metadata column types/levels; use it to find valid group columns."

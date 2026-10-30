@@ -7,8 +7,8 @@ mod_dataset_ui <- function(id) {
       box(
         width = 6, title = "Load a Seurat object", status = "primary",
         solidHeader = TRUE,
-        fileInput(ns("file"), "Upload .rds or .qs",
-                  accept = c(".rds", ".qs")),
+        fileInput(ns("file"), "Upload .rds or .qs2",
+                  accept = c(".rds", ".qs2")),
         actionButton(ns("load"), "Load uploaded object", icon = icon("upload")),
         hr(),
         selectInput(
@@ -77,17 +77,20 @@ mod_dataset_server <- function(id) {
       req(input$file)
       tryCatch({
         ext <- tolower(sub(".*\\.", "", input$file$name))
-        if (!ext %in% c("rds", "qs")) {
+        if (!ext %in% c("rds", "qs2")) {
           stop(
-            "Only .rds and .qs files are supported; convert other formats with saveRDS().",
+            paste0(
+              "Only .rds and .qs2 files are supported. ",
+              "Convert legacy .qs files with the qs package and save them as .rds or .qs2."
+            ),
             call. = FALSE
           )
         }
-        obj <- if (identical(ext, "qs")) {
-          if (!requireNamespace("qs", quietly = TRUE)) {
-            stop("Install the qs package to read .qs files.", call. = FALSE)
+        obj <- if (identical(ext, "qs2")) {
+          if (!requireNamespace("qs2", quietly = TRUE)) {
+            stop("Install the qs2 package to read .qs2 files.", call. = FALSE)
           }
-          qs::qread(input$file$datapath)
+          qs2::qs_read(input$file$datapath)
         } else {
           readRDS(input$file$datapath)
         }

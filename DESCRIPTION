@@ -1,6 +1,6 @@
 Package: scRNAtoolVis
 Title: Making ScRNA-seq Visualization More Easier and Better
-Version: 0.1.0
+Version: 0.1.1
 Authors@R: 
     person("Jun", "Zhang", , "3219030654@stu.cpu.edu.cn", role = c("aut", "cre"),
            comment = c(ORCID = "YOUR-ORCID-ID"))
@@ -47,7 +47,7 @@ Suggests:
     DT,
     colourpicker,
     jsonlite,
-    qs,
+    qs2,
     svglite,
     testthat (>= 3.0.0),
     shinytest2

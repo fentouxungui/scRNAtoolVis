@@ -4,7 +4,7 @@
 # span(title = ...) gives the native browser tooltip, matching the approach
 # used by SeuratExplorer without adding another dependency.
 tooltips <- c(
-  data = "Upload a Seurat object (.rds/.qs), load a demo object, and inspect metadata and reductions.",
+  data = "Upload a Seurat object (.rds/.qs2), load a demo object, and inspect metadata and reductions.",
   featurePlot = "Plot expression of one or more genes on a UMAP/t-SNE/PCA embedding.",
   clusterCornerAxes = "UMAP/t-SNE cluster map with clean corner axes; optional facets and cluster hulls.",
   featureCornerAxes = "Gene expression on a UMAP/t-SNE embedding with corner axes and optional faceting.",
