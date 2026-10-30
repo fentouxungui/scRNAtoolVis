@@ -326,6 +326,67 @@ full_control_list <- function(spec) {
   }))
 }
 
+about_overview_ui <- function() {
+  overview <- data.frame(
+    panel = 1:9,
+    menu = c(
+      "Cluster Corner Axes", "Cluster Corner Axes", "Feature Plot",
+      "Average Heatmap", "Marker Volcano", "Volcano Plot",
+      "Dot Plot", "Volcano Plot", "Cell Ratio Plot"
+    ),
+    detail = c(
+      "cluster hulls", "cell-type labels", "one panel per gene",
+      "z-scored average expression", "faceted marker volcano",
+      "log2FC per cluster", "gene x cluster dot matrix",
+      "polar layout", "stacked cell-type proportions"
+    ),
+    stringsAsFactors = FALSE
+  )
+
+  box(
+    width = 12, title = "Function overview", status = "primary",
+    solidHeader = TRUE,
+    tags$p(
+      "The nine panels are representative views. Numbers map to the sidebar",
+      " menu names below; panels 1/2 and 6/8 are two modes of the same menu."
+    ),
+    tags$figure(
+      class = "about-overview-figure",
+      tags$img(
+        src = "function-about.png",
+        alt = "scRNAtoolVis function overview with nine numbered panels",
+        style = paste0(
+          "max-width: 100%; height: auto; display: block; ",
+          "margin: 0 auto; border: 1px solid #e5e5e5;"
+        ),
+        onerror = "this.parentNode.style.display='none'"
+      ),
+      tags$figcaption(
+        "Figure. Nine representative scRNAtoolVis views; the numbered",
+        " panel map is repeated in the table below."
+      )
+    ),
+    tags$table(
+      class = "table table-condensed table-striped",
+      tags$thead(tags$tr(
+        tags$th("#"), tags$th("Menu"), tags$th("Panel")
+      )),
+      tags$tbody(lapply(seq_len(nrow(overview)), function(i) {
+        tags$tr(
+          tags$td(overview$panel[i]),
+          tags$td(overview$menu[i]),
+          tags$td(overview$detail[i])
+        )
+      }))
+    ),
+    tags$p(
+      class = "help-block",
+      "Feature Corner Axes, Scatter Cell Plot, Tracks Plot, and Legend",
+      " Composer are additional menus not shown in this nine-panel overview."
+    )
+  )
+}
+
 about_docs_ui <- function() {
   sections <- list(
     "Data" = c("data"),

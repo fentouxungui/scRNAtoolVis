@@ -33,14 +33,19 @@ plot_tab <- function(id) {
   tabItem(tabName = id, mod_plot_ui(id, PLOT_SPECS[[id]]))
 }
 
+# Keep the header title width equal to the sidebar width so the brand block
+# and the menu block line up exactly.
+sidebar_width <- 230
+
 ui <- dashboardPage(
-  skin = "blue",
+  skin = "green",
   dashboardHeader(
-    title = "scRNAtoolVis Explorer",
-    titleWidth = 300,
+    title = "scRNAtoolVis",
+    titleWidth = sidebar_width,
     tags$li(class = "dropdown", uiOutput("header_status"))
   ),
   dashboardSidebar(
+    width = sidebar_width,
     sidebarMenu(
       id = "tabs",
       menuItem(
@@ -126,6 +131,7 @@ ui <- dashboardPage(
       plot_tab("drawLegend"),
       tabItem(
         tabName = "about",
+        about_overview_ui(),
         about_docs_ui(),
         box(
           width = 12, title = "Session information", status = "primary",

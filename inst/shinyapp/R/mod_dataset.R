@@ -3,6 +3,21 @@
 mod_dataset_ui <- function(id) {
   ns <- shiny::NS(id)
   tagList(
+    div(
+      class = "hero-card",
+      div(class = "hero-kicker", "scRNAtoolVis workbench"),
+      h2("Visualize single-cell data without writing code"),
+      p(
+        "Upload a Seurat object (.rds or .qs2), choose a plotting function,",
+        " tune its parameters, and export both the figure and the exact R code."
+      ),
+      div(
+        class = "hero-steps",
+        span(class = "hero-step", tags$b("1"), "Upload or load demo"),
+        span(class = "hero-step", tags$b("2"), "Pick a plot"),
+        span(class = "hero-step", tags$b("3"), "Draw, tune, export")
+      )
+    ),
     fluidRow(
       box(
         width = 6, title = "Load a Seurat object", status = "primary",
