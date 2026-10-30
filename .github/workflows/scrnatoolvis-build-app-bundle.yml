@@ -283,7 +283,7 @@ jobs:
             if (!is.null(dcf)) {
               need <- setdiff(dcf_deps(dcf), c(have(), base_pkgs))
               need <- intersect(need, rownames(db))
-              if (length(need)) { cat("archive deps:", paste(need, collapse = ", "), "\n"); ins(need, deps = FALSE) }
+              if (length(need)) { cat("archive deps:", paste(need, collapse = ", "), "\n"); ins(need) }
             }
             install.packages(pkgdir, lib = lib, repos = NULL, type = "source", dependencies = FALSE)
           }
