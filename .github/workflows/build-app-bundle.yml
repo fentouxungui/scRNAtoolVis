@@ -1,7 +1,19 @@
 # =====================================================================
-#  Generated from shinyapps-onboarding VERSION 2026.11.17.1
+#  Generated from shinyapps-onboarding VERSION 2026.11.17.3
 #  (local working-tree snapshot; canonical main was fc69af4 at generation time).
-#  App-specific: Windows-only bundle (macOS deferred; see APP_NOTES).
+#  App-specific: Windows + macOS arm64 bundles; macOS enabled after the archive
+#  dependency-closure fix (validate the macOS artifact).
+#
+#  Build flow / order:
+#    resolve -> bundle matrix -> release
+#    Both bundle legs start after resolve and run in parallel:
+#      - win-x64 on windows-latest
+#      - mac-arm64 on macos-15:
+#          verify Xcode/clang/make -> optional brew deps -> portable R
+#          (macOS .portable patching) -> install closure + archives ->
+#          assemble with macOS dylib audit -> re-sign Mach-O -> zip -> smoke
+#    release waits for both legs and attaches both zips plus SHA256SUMS and
+#    build-info.json.
 #  MANDATORY: before using or modifying this template, complete the skill
 #  version gate in references/skill-version-policy.md (verify canonical main).
 #
@@ -118,7 +130,7 @@ env:
   # (absolute paths in config files, disabling a module that cannot ship).
   PATCH_SCRIPT: ""
   PREFETCH_SCRIPT: ""
-  APP_NOTES: "Windows-only bundle. macOS remains deferred pending a separate validation; the earlier ggunchull failure was missing transitive R dependencies, not a compiler issue. Flat bundle of inst/shinyapp: scRNAtoolVis and its GitHub-only dependencies jjAnno, jjPlot and ggunchull are installed from pinned GitHub archive tarballs; SOFT_PKGS is used only to bypass the CRAN/Bioc index for these forced packages. .rds and .qs2 uploads are supported via qs2; legacy .qs is not compatible with qs2. The bundle includes GPL-3.0-or-later ggunchull and qs2. The CRAN dependencies of the pinned archives (tidyverse for jjPlot; alphahull/dbscan/polyclip for ggunchull; ggiraphExtra/magick for jjAnno) are included in EXTRA_PKGS so their transitive closure is installed before the archives."
+  APP_NOTES: "Windows and macOS arm64 bundles. macOS is enabled now that the archive dependency closure is fixed; the earlier ggunchull failure was missing transitive R dependencies, not a compiler issue. Validate the macOS artifact with the dylib audit and smoke test; if the audit flags gdtools/magick, add SOURCE_REBUILD/MACOS_BREW_DEPS. Flat bundle of inst/shinyapp: scRNAtoolVis and its GitHub-only dependencies jjAnno, jjPlot and ggunchull are installed from pinned GitHub archive tarballs; SOFT_PKGS is used only to bypass the CRAN/Bioc index for these forced packages. .rds and .qs2 uploads are supported via qs2; legacy .qs is not compatible with qs2. The bundle includes GPL-3.0-or-later ggunchull and qs2. The CRAN dependencies of the pinned archives (tidyverse for jjPlot; alphahull/dbscan/polyclip for ggunchull; ggiraphExtra/magick for jjAnno) are included in EXTRA_PKGS so their transitive closure is installed before the archives."
   MAX_REQUEST_MB: "1024"
   SMOKE: "on"
   SMOKE_TIMEOUT_SEC: "300"
@@ -177,6 +189,7 @@ jobs:
           echo "Resolved tag=$tag version=$raw"
 
   bundle:
+    name: Build ${{ matrix.platform }} bundle
     needs: resolve
     runs-on: ${{ matrix.os }}
     strategy:
@@ -184,6 +197,7 @@ jobs:
       matrix:
         include:
           - { os: windows-latest, platform: "win-x64" }
+          - { os: macos-15,       platform: "mac-arm64" }
     steps:
       - uses: actions/checkout@v4
         with:
@@ -358,7 +372,18 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          Rscript -e 'cat("R:", R.version.string, "\n"); ok <- nzchar(Sys.which("make")) && nzchar(Sys.which("gcc")); if (!ok) stop("Rtools/make/gcc not found on PATH; compiled dependencies cannot build"); cat("toolchain OK:", Sys.which("make"), "|", Sys.which("gcc"), "\n")'
+          : "${PORTABLE_RSCRIPT:?PORTABLE_RSCRIPT is not set by the portable-R setup}"
+          echo "PORTABLE_RSCRIPT=$PORTABLE_RSCRIPT"
+          "$PORTABLE_RSCRIPT" -e 'cat("R:", R.version.string, "\n"); ok <- nzchar(Sys.which("make")) && nzchar(Sys.which("gcc")); if (!ok) stop("Rtools/make/gcc not found on PATH; compiled dependencies cannot build"); cat("toolchain OK:", Sys.which("make"), "|", Sys.which("gcc"), "\n")'
+
+      - name: Verify macOS build toolchain
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          sw_vers
+          echo "xcode-select: $(xcode-select -p)"
+          command -v clang
+          command -v make
 
       - name: Install macOS build dependencies (optional)
         if: ${{ env.MACOS_BREW_DEPS != '' && runner.os == 'macOS' }}
