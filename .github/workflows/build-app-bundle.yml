@@ -1,5 +1,5 @@
 # =====================================================================
-#  Generated from shinyapps-onboarding VERSION 2026.11.17.7
+#  Generated from shinyapps-onboarding VERSION 2026.11.17.8
 #  (local working-tree snapshot; canonical main was fc69af4 at generation time).
 #  App-specific: Windows + macOS arm64 bundles; macOS enabled after the archive
 #  dependency-closure fix (validate the macOS artifact).
@@ -344,7 +344,9 @@ jobs:
             print(list.files(root, recursive = TRUE, full.names = TRUE))
             stop("portable Rscript not found under ", root)
           }
-          cat(dirname(rscript), "\n", sep = "", file = Sys.getenv("GITHUB_PATH"), append = TRUE)
+          # Do not add the portable bin to GITHUB_PATH: a forward-slash drive
+          # path can break Windows where/Sys.which. Later steps use absolute
+          # $PORTABLE_RSCRIPT.
           setup_dir <- file.path(root, "harness-root")
           dir.create(setup_dir, recursive = TRUE, showWarnings = FALSE)
           cat(rscript, "\n", sep = "", file = file.path(setup_dir, "rscript.txt"))
@@ -458,9 +460,9 @@ jobs:
           fi
           echo "R_HOME (inherited)=${R_HOME:-<unset>}"
           # On Windows, do not export R_HOME: the portable Rscript self-locates.
-          # A set R_HOME plus the portable bin on GITHUB_PATH can make
-          # Rscript.exe exit 255 ("The system cannot find the path specified.")
-          # even when the path exists. Derive R.home() for diagnostics only.
+          # Do not add the portable bin to GITHUB_PATH; a forward-slash drive
+          # entry can make where/Sys.which exit 255. Check tools with shell
+          # command -v below, not R Sys.which. Derive R.home() for diagnostics.
           ACTUAL_R_HOME="$(R_HOME= "$PORTABLE_RSCRIPT" -e 'cat(R.home())')"
           ACTUAL_R_HOME="$(printf '%s' "$ACTUAL_R_HOME" | tr -d '\r' | sed 's/[[:space:]]*$//')"
           if [ -z "$ACTUAL_R_HOME" ] || [ ! -d "$ACTUAL_R_HOME" ]; then
@@ -468,7 +470,15 @@ jobs:
             exit 1
           fi
           echo "R_HOME (self-located)=$ACTUAL_R_HOME"
-          R_HOME= "$PORTABLE_RSCRIPT" -e 'cat("R:", R.version.string, "\n"); ok <- nzchar(Sys.which("make")) && nzchar(Sys.which("gcc")); if (!ok) stop("Rtools/make/gcc not found on PATH; compiled dependencies cannot build"); cat("toolchain OK:", Sys.which("make"), "|", Sys.which("gcc"), "\n")'
+          R_HOME= "$PORTABLE_RSCRIPT" -e 'cat("R:", R.version.string, "\n")'
+
+          for tool in make gcc; do
+            if ! command -v "$tool" >/dev/null 2>&1; then
+              echo "::error::$tool not found on PATH; Rtools is required for compiled dependencies"
+              exit 1
+            fi
+          done
+          echo "toolchain OK: $(command -v make) | $(command -v gcc)"
 
       - name: Verify macOS build toolchain
         if: runner.os == 'macOS'
