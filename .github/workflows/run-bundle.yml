@@ -1,0 +1,134 @@
+name: Run bundle
+
+# Dispatcher for a partially released tag:
+#   - inspect the tag's Release assets
+#   - build only the platform that has no published bundle
+#   - let Build app bundle release that platform independently
+#
+# Both platforms present -> no build. Neither present -> both. One present ->
+# only the missing one.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to complete (e.g. v0.1.2)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  APP_ID: scrnatoolvis
+  R_VERSION: "4.6.1"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.check.outputs.tag }}
+      platforms: ${{ steps.check.outputs.platforms }}
+      release_exists: ${{ steps.check.outputs.release_exists }}
+      win_present: ${{ steps.check.outputs.win_present }}
+      mac_present: ${{ steps.check.outputs.mac_present }}
+    steps:
+      - name: Check existing Release assets
+        id: check
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TAG: ${{ inputs.tag }}
+          APP_ID: ${{ env.APP_ID }}
+          R_VERSION: ${{ env.R_VERSION }}
+        run: |
+          set -euo pipefail
+
+          raw="${INPUT_TAG#refs/tags/}"
+          raw="${raw#v}"
+          raw="$(printf '%s' "$raw" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+          if [ -z "$raw" ]; then
+            echo "::error::tag input is required"
+            exit 1
+          fi
+          tag="v$raw"
+          version="$raw"
+          r_abi="${R_VERSION%.*}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+          # Fail early if the tag itself is missing; Build would fail at checkout.
+          if ! git ls-remote --tags "https://github.com/${GITHUB_REPOSITORY}.git" "refs/tags/$tag" | grep -q .; then
+            echo "::error::tag $tag does not exist in $GITHUB_REPOSITORY"
+            exit 1
+          fi
+
+          ERR="$(mktemp)"
+          set +e
+          release_json="$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" \
+            --json assets,isDraft,isPrerelease 2>"$ERR")"
+          rc=$?
+          set -e
+
+          release_exists=false
+          win=false
+          mac=false
+
+          if [ "$rc" -eq 0 ]; then
+            is_draft="$(printf '%s' "$release_json" | jq -r '.isDraft')"
+            is_pre="$(printf '%s' "$release_json" | jq -r '.isPrerelease')"
+            if [ "$is_draft" = "true" ]; then
+              echo "::error::Release $tag is a draft. Publish or delete it before running this workflow."
+              exit 1
+            fi
+            if [ "$is_pre" = "true" ]; then
+              echo "::error::Release $tag is a prerelease; publish a normal Release before treating it as available."
+              exit 1
+            fi
+            release_exists=true
+            names="$(printf '%s' "$release_json" | jq -r '.assets[]?.name')"
+            while IFS= read -r n; do
+              [ -n "$n" ] || continue
+              case "$n" in
+                "${APP_ID}-${version}-win-x64-r${r_abi}.zip"|"${APP_ID}-${version}-win-x64.zip") win=true ;;
+                "${APP_ID}-${version}-mac-arm64-r${r_abi}.zip"|"${APP_ID}-${version}-mac-arm64.zip") mac=true ;;
+              esac
+            done <<< "$names"
+          elif grep -qiE 'release not found|HTTP 404' "$ERR"; then
+            release_exists=false
+          else
+            echo "::error::could not read Release $tag; refusing to guess"
+            cat "$ERR"
+            exit 1
+          fi
+
+          need_win=$([ "$win" = "true" ] && echo false || echo true)
+          need_mac=$([ "$mac" = "true" ] && echo false || echo true)
+          platforms=""
+          if [ "$need_win" = "true" ] && [ "$need_mac" = "true" ]; then
+            platforms="all"
+          elif [ "$need_win" = "true" ]; then
+            platforms="win-x64"
+          elif [ "$need_mac" = "true" ]; then
+            platforms="mac-arm64"
+          fi
+
+          echo "win_present=$win" >> "$GITHUB_OUTPUT"
+          echo "mac_present=$mac" >> "$GITHUB_OUTPUT"
+          echo "release_exists=$release_exists" >> "$GITHUB_OUTPUT"
+          echo "platforms=$platforms" >> "$GITHUB_OUTPUT"
+
+          echo "Release $tag: exists=$release_exists win=$win mac=$mac -> build platforms='$platforms'"
+          if [ -z "$platforms" ]; then
+            echo "Both platforms already have a published Release asset; nothing to build."
+          fi
+
+  build:
+    needs: check
+    if: needs.check.outputs.platforms != ''
+    permissions:
+      contents: write
+    uses: ./.github/workflows/build-app-bundle.yml
+    with:
+      tag: ${{ needs.check.outputs.tag }}
+      platforms: ${{ needs.check.outputs.platforms }}
+      allow_create_release: ${{ needs.check.outputs.release_exists != 'true' }}

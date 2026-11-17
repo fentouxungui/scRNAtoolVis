@@ -1,5 +1,5 @@
 # =====================================================================
-#  Generated from shinyapps-onboarding VERSION 2026.11.17.4
+#  Generated from shinyapps-onboarding VERSION 2026.11.17.7
 #  (local working-tree snapshot; canonical main was fc69af4 at generation time).
 #  App-specific: Windows + macOS arm64 bundles; macOS enabled after the archive
 #  dependency-closure fix (validate the macOS artifact).
@@ -17,7 +17,10 @@
 #  MANDATORY: before using or modifying this template, complete the skill
 #  version gate in references/skill-version-policy.md (verify canonical main).
 #
-#  ShinyApps app-layer bundle builder (Route A) -- HARDENED v5.6.
+#  ShinyApps app-layer bundle builder (Route A) -- HARDENED v5.7.
+#  v5.7: release each platform independently (always() + artifact presence),
+#  release only the platform zips (meta/checksum files stay as Actions
+#  artifacts), and support platform subsets via workflow_call for Run Bundle.
 #  v5.6: install the transitive dependency closure of each ARCHIVE_URLS
 #  package before the archive; local source installs with dependencies = FALSE
 #  do not resolve dependencies.
@@ -75,9 +78,11 @@ name: Build app bundle
 
 # Tag pushes are the primary trigger. Do NOT add `release: published`: this
 # workflow creates the Release for a new tag, so that event would start a second
-# identical build/upload. A manual dispatch attaches to an existing Release.
-# If the repo's tags do not use a `v` prefix, change this pattern and the
-# canonicalization in the `resolve` job together.
+# identical build/upload. A direct manual dispatch attaches to an existing
+# Release; the Run Bundle workflow can call this workflow with
+# allow_create_release=true when the tag has no Release yet.
+# `platforms` selects all / win-x64 / mac-arm64; Run Bundle uses it to build only
+# the platform that is missing from the Release.
 on:
   push:
     tags:
@@ -88,6 +93,31 @@ on:
         description: "Existing tag whose Release should receive the bundles (e.g. v0.2.0)"
         required: true
         type: string
+      platforms:
+        description: "Platforms to build"
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - win-x64
+          - mac-arm64
+  workflow_call:
+    inputs:
+      tag:
+        description: "Tag to build"
+        required: true
+        type: string
+      platforms:
+        description: "all, win-x64, or mac-arm64"
+        required: false
+        default: all
+        type: string
+      allow_create_release:
+        description: "Allow creating the tag's Release when it does not exist"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -162,7 +192,7 @@ jobs:
         id: resolve
         shell: bash
         env:
-          INPUT_TAG: ${{ github.event.inputs.tag }}
+          INPUT_TAG: ${{ inputs.tag || github.event.inputs.tag }}
           EVENT_TAG: ${{ github.event_name == 'push' && github.ref_name || '' }}
         run: |
           set -euo pipefail
@@ -188,16 +218,44 @@ jobs:
           echo "version=$raw" >> "$GITHUB_OUTPUT"
           echo "Resolved tag=$tag version=$raw"
 
+  plan:
+    needs: resolve
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - name: Select platform matrix
+        id: matrix
+        shell: bash
+        env:
+          PLATFORMS: ${{ inputs.platforms || 'all' }}
+        run: |
+          set -euo pipefail
+          case "$PLATFORMS" in
+            all)
+              matrix='{"include":[{"os":"windows-latest","platform":"win-x64"},{"os":"macos-15","platform":"mac-arm64"}]}'
+              ;;
+            win-x64)
+              matrix='{"include":[{"os":"windows-latest","platform":"win-x64"}]}'
+              ;;
+            mac-arm64)
+              matrix='{"include":[{"os":"macos-15","platform":"mac-arm64"}]}'
+              ;;
+            *)
+              echo "::error::unknown platforms input: $PLATFORMS"
+              exit 1
+              ;;
+          esac
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "Selected platforms: $PLATFORMS"
+
   bundle:
     name: Build ${{ matrix.platform }} bundle
-    needs: resolve
+    needs: [resolve, plan]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - { os: windows-latest, platform: "win-x64" }
-          - { os: macos-15,       platform: "mac-arm64" }
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -331,7 +389,11 @@ jobs:
             exit 1
           fi
           echo "portable R_HOME: $PORTABLE_R_HOME"
-          export R_HOME="$PORTABLE_R_HOME"
+          # On Windows the portable Rscript self-locates. Exporting R_HOME after
+          # the portable bin is on GITHUB_PATH can make Rscript.exe exit 255
+          # ("The system cannot find the path specified."). Keep it empty on
+          # Windows; macOS needs the explicit portable R_HOME for .portable.
+          if [ "$(uname -s)" = "Darwin" ]; then export R_HOME="$PORTABLE_R_HOME"; else export R_HOME=; fi
           if [ "$(uname -s)" = "Darwin" ]; then
             PORTABLE_SITE_PROFILE="$PORTABLE_R_HOME/etc/Rprofile.site"
             if [ ! -f "$PORTABLE_SITE_PROFILE" ]; then
@@ -370,7 +432,11 @@ jobs:
           }
           EOF
           "$RSCRIPT" "$SETUP_DIR/check-script.R"
-          echo "R_HOME=$PORTABLE_R_HOME" >> "$GITHUB_ENV"
+          if [ "$(uname -s)" = "Darwin" ]; then
+            echo "R_HOME=$PORTABLE_R_HOME" >> "$GITHUB_ENV"
+          else
+            echo "R_HOME=" >> "$GITHUB_ENV"
+          fi
           echo "R_LIBS_SITE=$HARNESS_LIB" >> "$GITHUB_ENV"
           echo "R_LIBS=" >> "$GITHUB_ENV"
           echo "R_ENVIRON=" >> "$GITHUB_ENV"
@@ -391,19 +457,18 @@ jobs:
             exit 1
           fi
           echo "R_HOME (inherited)=${R_HOME:-<unset>}"
-          # Re-derive R_HOME from the portable Rscript with an empty R_HOME.
-          # A stale/malformed GITHUB_ENV R_HOME makes Rscript.exe exit 255
-          # ("The system cannot find the path specified.") before R starts.
+          # On Windows, do not export R_HOME: the portable Rscript self-locates.
+          # A set R_HOME plus the portable bin on GITHUB_PATH can make
+          # Rscript.exe exit 255 ("The system cannot find the path specified.")
+          # even when the path exists. Derive R.home() for diagnostics only.
           ACTUAL_R_HOME="$(R_HOME= "$PORTABLE_RSCRIPT" -e 'cat(R.home())')"
           ACTUAL_R_HOME="$(printf '%s' "$ACTUAL_R_HOME" | tr -d '\r' | sed 's/[[:space:]]*$//')"
           if [ -z "$ACTUAL_R_HOME" ] || [ ! -d "$ACTUAL_R_HOME" ]; then
             echo "::error::portable R_HOME is invalid: '$ACTUAL_R_HOME'"
             exit 1
           fi
-          export R_HOME="$ACTUAL_R_HOME"
-          echo "R_HOME=$ACTUAL_R_HOME" >> "$GITHUB_ENV"
-          echo "R_HOME=$ACTUAL_R_HOME"
-          "$PORTABLE_RSCRIPT" -e 'cat("R:", R.version.string, "\n"); ok <- nzchar(Sys.which("make")) && nzchar(Sys.which("gcc")); if (!ok) stop("Rtools/make/gcc not found on PATH; compiled dependencies cannot build"); cat("toolchain OK:", Sys.which("make"), "|", Sys.which("gcc"), "\n")'
+          echo "R_HOME (self-located)=$ACTUAL_R_HOME"
+          R_HOME= "$PORTABLE_RSCRIPT" -e 'cat("R:", R.version.string, "\n"); ok <- nzchar(Sys.which("make")) && nzchar(Sys.which("gcc")); if (!ok) stop("Rtools/make/gcc not found on PATH; compiled dependencies cannot build"); cat("toolchain OK:", Sys.which("make"), "|", Sys.which("gcc"), "\n")'
 
       - name: Verify macOS build toolchain
         if: runner.os == 'macOS'
@@ -923,6 +988,10 @@ jobs:
 
   release:
     needs: [resolve, bundle]
+    # A matrix job's result is aggregate: if one platform fails, bundle is
+    # "failure". always() lets release run and upload whatever platform
+    # artifacts exist; the artifact check below decides what to publish.
+    if: always() && needs.resolve.result == 'success' && needs.bundle.result != 'cancelled'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -930,59 +999,40 @@ jobs:
       TAG: ${{ needs.resolve.outputs.tag }}
     steps:
       - uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           path: artifacts
           merge-multiple: true
-      - name: Consolidate release metadata
+      - name: Check for built bundles
+        id: check
         shell: bash
         run: |
-          python3 - <<'PY'
-          import datetime, glob, hashlib, json, os
-
-          metas, deps = {}, {}
-          for path in sorted(glob.glob("artifacts/meta-*.json")):
-              platform = os.path.basename(path)[5:-5]
-              metas[platform] = json.load(open(path))
-          for path in sorted(glob.glob("artifacts/deps-*.json")):
-              platform = os.path.basename(path)[5:-5]
-              deps[platform] = json.load(open(path))
-
-          first = next(iter(metas.values()), {})
-          info = {
-              "app_id": first.get("app_id", ""),
-              "version": first.get("version", ""),
-              "source_repository": first.get("source_repository", ""),
-              "source_commit": first.get("source_commit", ""),
-              "generated_at": datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
-              "platforms": {
-                  platform: {"metadata": meta, "dependencies": deps.get(platform)}
-                  for platform, meta in metas.items()
-              },
-          }
-          with open("artifacts/build-info.json", "w") as fh:
-              json.dump(info, fh, indent=2)
-              fh.write("\n")
-
-          lines = []
-          for path in sorted(glob.glob("artifacts/*.zip")):
-              digest = hashlib.sha256(open(path, "rb").read()).hexdigest()
-              lines.append(f"{digest}  {os.path.basename(path)}")
-          with open("artifacts/SHA256SUMS", "w") as fh:
-              fh.write("\n".join(lines) + "\n")
-          PY
-          # Keep per-platform files as Actions artifacts, but publish only the
-          # bundles plus the consolidated checksum/metadata files.
-          rm -f artifacts/*.sha256 artifacts/meta-*.json artifacts/deps-*.json
+          set -euo pipefail
+          count=0
+          if [ -d artifacts ]; then
+            count=$(find artifacts -maxdepth 1 -type f -name '*.zip' | wc -l | tr -d ' ')
+          fi
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          if [ "$count" -eq 0 ]; then
+            echo "::warning::No successful platform artifacts in this run; nothing to release."
+          fi
       - name: Attach bundles to the tag's Release
+        if: steps.check.outputs.count != '0'
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           EVENT_NAME: ${{ github.event_name }}
+          # workflow_call from Run Bundle sets this when the tag has no Release.
+          ALLOW_CREATE: ${{ inputs.allow_create_release }}
         shell: bash
         run: |
           set -euo pipefail
           : "${TAG:?TAG is empty}"
-          files=(artifacts/*.zip artifacts/SHA256SUMS artifacts/build-info.json)
+          # ShinyApps publish-catalog only consumes the platform zips; it
+          # derives sha256 from GitHub's asset digest. Keep meta/checksum files
+          # as Actions artifacts, not Release assets, so incremental platform
+          # releases cannot collide or confuse the catalog.
+          files=(artifacts/*.zip)
 
           ERR="$(mktemp)"
           set +e
@@ -993,12 +1043,13 @@ jobs:
 
           if [ "$rc" -ne 0 ]; then
             if grep -qiE 'release not found|HTTP 404' "$ERR"; then
-              if [ "${EVENT_NAME:-}" != "push" ]; then
+              if [ "${EVENT_NAME:-}" != "push" ] && [ "${ALLOW_CREATE:-false}" != "true" ]; then
                 echo "::error::No existing Release is associated with tag $TAG."
                 echo "::error::Manual runs attach to an existing Release; they do not create one."
                 exit 1
               fi
-              # A tag push owns the Release: create it once, then attach.
+              # A tag push, or workflow_call with allow_create_release=true,
+              # owns the Release: create it once, then attach.
               echo "No Release exists for $TAG; creating one for the tag."
               gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
                 --title "$TAG" \
