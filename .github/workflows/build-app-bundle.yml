@@ -1,5 +1,5 @@
 # =====================================================================
-#  Generated from shinyapps-onboarding VERSION 2026.11.17.3
+#  Generated from shinyapps-onboarding VERSION 2026.11.17.4
 #  (local working-tree snapshot; canonical main was fc69af4 at generation time).
 #  App-specific: Windows + macOS arm64 bundles; macOS enabled after the archive
 #  dependency-closure fix (validate the macOS artifact).
@@ -312,6 +312,11 @@ jobs:
           export R_ENVIRON= R_ENVIRON_USER= R_PROFILE_USER=
           unset R_PROFILE
           RSCRIPT="$(cat "$SETUP_DIR/harness-root/rscript.txt")"
+          if [ ! -f "$RSCRIPT" ]; then
+            echo "::error::portable Rscript not found: $RSCRIPT"
+            ls -la "$(dirname "$RSCRIPT")" || true
+            exit 1
+          fi
           # macOS: portable R's own etc/Rprofile.site installs the .portable
           # environment that rewrites CRAN binary .so files from absolute
           # R.framework paths to @rpath. An EMPTY R_PROFILE disables the
@@ -320,7 +325,12 @@ jobs:
           # cat() inserts a space between arguments; use one argument and
           # strip any trailing whitespace so the path is exact.
           PORTABLE_R_HOME="$("$RSCRIPT" -e 'cat(R.home())')"
-          PORTABLE_R_HOME="$(printf '%s' "$PORTABLE_R_HOME" | sed 's/[[:space:]]*$//')"
+          PORTABLE_R_HOME="$(printf '%s' "$PORTABLE_R_HOME" | tr -d '\r' | sed 's/[[:space:]]*$//')"
+          if [ -z "$PORTABLE_R_HOME" ] || [ ! -d "$PORTABLE_R_HOME" ]; then
+            echo "::error::invalid portable R_HOME: '$PORTABLE_R_HOME'"
+            exit 1
+          fi
+          echo "portable R_HOME: $PORTABLE_R_HOME"
           export R_HOME="$PORTABLE_R_HOME"
           if [ "$(uname -s)" = "Darwin" ]; then
             PORTABLE_SITE_PROFILE="$PORTABLE_R_HOME/etc/Rprofile.site"
@@ -373,7 +383,26 @@ jobs:
         shell: bash
         run: |
           : "${PORTABLE_RSCRIPT:?PORTABLE_RSCRIPT is not set by the portable-R setup}"
+          PORTABLE_RSCRIPT="$(printf '%s' "$PORTABLE_RSCRIPT" | tr -d '\r')"
           echo "PORTABLE_RSCRIPT=$PORTABLE_RSCRIPT"
+          if [ ! -f "$PORTABLE_RSCRIPT" ]; then
+            echo "::error::PORTABLE_RSCRIPT does not exist: $PORTABLE_RSCRIPT"
+            ls -la "$(dirname "$PORTABLE_RSCRIPT")" || true
+            exit 1
+          fi
+          echo "R_HOME (inherited)=${R_HOME:-<unset>}"
+          # Re-derive R_HOME from the portable Rscript with an empty R_HOME.
+          # A stale/malformed GITHUB_ENV R_HOME makes Rscript.exe exit 255
+          # ("The system cannot find the path specified.") before R starts.
+          ACTUAL_R_HOME="$(R_HOME= "$PORTABLE_RSCRIPT" -e 'cat(R.home())')"
+          ACTUAL_R_HOME="$(printf '%s' "$ACTUAL_R_HOME" | tr -d '\r' | sed 's/[[:space:]]*$//')"
+          if [ -z "$ACTUAL_R_HOME" ] || [ ! -d "$ACTUAL_R_HOME" ]; then
+            echo "::error::portable R_HOME is invalid: '$ACTUAL_R_HOME'"
+            exit 1
+          fi
+          export R_HOME="$ACTUAL_R_HOME"
+          echo "R_HOME=$ACTUAL_R_HOME" >> "$GITHUB_ENV"
+          echo "R_HOME=$ACTUAL_R_HOME"
           "$PORTABLE_RSCRIPT" -e 'cat("R:", R.version.string, "\n"); ok <- nzchar(Sys.which("make")) && nzchar(Sys.which("gcc")); if (!ok) stop("Rtools/make/gcc not found on PATH; compiled dependencies cannot build"); cat("toolchain OK:", Sys.which("make"), "|", Sys.which("gcc"), "\n")'
 
       - name: Verify macOS build toolchain
@@ -836,7 +865,9 @@ jobs:
           # its root page. Constructing the app object is not enough: a ui
           # function or a startup hook can fail only once the server runs.
           serve <- function(appdir, lib, port) {
-            .libPaths(c(lib, .Library))
+            # include.site = FALSE keeps the portable-R harness/site library out;
+            # the smoke child must see only rlib + base R.
+            .libPaths(c(lib, .Library), include.site = FALSE)
             if (!identical(normalizePath(.libPaths()[1], winslash = "/", mustWork = TRUE),
                            normalizePath(lib, winslash = "/", mustWork = TRUE))) {
               stop("smoke: bundle rlib is not first on .libPaths()")
@@ -851,7 +882,8 @@ jobs:
           }
           port <- httpuv::randomPort()
           proc <- callr::r_bg(serve, args = list(appdir = appdir, lib = lib, port = port),
-                              supervise = TRUE)
+                              supervise = TRUE,
+                              env = c(R_LIBS_SITE = "", R_LIBS_USER = "", R_LIBS = ""))
           on.exit(try(proc$kill(), silent = TRUE), add = TRUE)
           url <- sprintf("http://127.0.0.1:%d/", port)
           deadline <- Sys.time() + timeout
